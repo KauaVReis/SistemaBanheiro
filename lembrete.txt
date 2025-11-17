@@ -1,0 +1,10 @@
+Adicionar sistema de adicionar aluno rapido, importando arquivo, txt json ou xml (ainda ver qual delas)
+arrumar card dos alunos, botão de excluir e editar esta acima do tempo /desc, colocas essas infos em baixo do nome
+adicionar sistema de tempo para o gerente ver na tela inicial, 
+relatorio por sala, que o professor pode gerar/ver um resumo do dia de quem foi mais quanto tempo ficor cada pessoa,filtrar tambem intervalo de data ou competencia
+responsividade para celular
+separar script.js para ser melhor para arrumar bugs
+sistema gerar pdf com os relatorios
+Usar qrcode do cartão para dar baixa na entrada e saida do banheiro
+Maximo de 1 aluno por sala
++1 de prof responsavel por sala exemplo caso real (Segunda terça e sexta prof a quarta e quinta prof b)

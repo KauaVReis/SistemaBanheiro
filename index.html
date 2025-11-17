@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Acesso ao Banheiro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-school"></i> Controle de Idas ao Banheiro</h1>
+            <button id="theme-toggle-btn" class="theme-toggle" title="Alterar tema"><i id="theme-icon"
+                    class="fas fa-moon"></i></button>
+        </header>
+
+        <div id="tela-geral" class="panel">
+            <div class="header-tela">
+                <h2><i class="fas fa-tools"></i> Painel de Administração</h2>
+                <div class="header-buttons">
+                    <button id="btn-abrir-scanner" class="btn-success"><i class="fas fa-qrcode"></i> Escanear</button>
+                    <button id="btn-ir-para-turmas" class="btn-primary"><i class="fas fa-chalkboard-teacher"></i>
+                        Gerenciar Alunos</button>
+                    <button id="btn-ir-para-relatorios" class="btn-secondary"><i class="fas fa-chart-bar"></i> Ver
+                        Relatórios</button>
+                </div>
+            </div>
+            <div class="config-panel">
+                <h4><i class="fas fa-cog"></i> Configurações Gerais</h4>
+                <div class="config-item"><label for="input-max-alunos">Nº máximo de alunos no banheiro
+                        (global):</label><input type="number" id="input-max-alunos" min="1" value="5"><button
+                        id="btn-salvar-config" class="btn-success"><i class="fas fa-save"></i> Salvar</button></div>
+            </div>
+            <hr class="divider">
+            <div class="admin-grid-columns">
+                <div class="admin-column">
+                    <h3><i class="fas fa-user-tie"></i> Professores</h3>
+                    <div class="cadastro-form"><input type="text" id="input-nome-professor"
+                            placeholder="Nome do novo professor"><button id="btn-add-professor" class="btn-primary"><i
+                                class="fas fa-plus"></i> Adicionar</button></div>
+                    <div id="lista-professores-admin" class="admin-list"></div>
+                </div>
+                <div class="admin-column">
+                    <h3><i class="fas fa-users"></i> Turmas</h3>
+                    <div class="cadastro-form"><input type="text" id="input-nome-turma"
+                            placeholder="Nome da nova turma"><select id="select-professor-turma">
+                            <option value="">Selecione um professor...</option>
+                        </select><button id="btn-add-turma" class="btn-primary"><i class="fas fa-plus"></i>
+                            Adicionar</button></div>
+                </div>
+            </div>
+            <hr class="divider">
+            <h3><i class="fas fa-globe-americas"></i> Visão Geral - Alunos no Banheiro</h3>
+            <div id="lista-geral-banheiro" class="lista-geral"></div>
+        </div>
+
+        <div id="tela-escolha-turma" class="panel" style="display: none;">
+            <div class="header-tela">
+                <h2><i class="fas fa-chalkboard-teacher"></i> Escolha a Turma para Gerenciar</h2><button
+                    id="btn-voltar-para-geral" class="btn-secondary"><i class="fas fa-arrow-left"></i> Voltar para
+                    Painel</button>
+            </div><input type="text" id="input-search-turmas" class="form-control"
+                placeholder="&#xf002;  Buscar turmas...">
+            <div id="lista-turmas" class="turmas-grid"></div>
+        </div>
+
+        <div id="tela-principal" class="panel" style="display: none;">
+            <div class="header-tela">
+                <h2 id="nome-turma-header"></h2><button id="btn-voltar-para-escolha" class="btn-secondary"><i
+                        class="fas fa-arrow-left"></i> Outra Turma</button>
+            </div>
+            <div class="main-content">
+                <div class="alunos-section">
+                    <div class="cadastro-form add-aluno-form">
+                        <h4><i class="fas fa-user-plus"></i> Adicionar Aluno</h4><input type="text"
+                            id="input-nome-aluno" placeholder="Nome do novo aluno"><button id="btn-add-aluno"
+                            class="btn-primary"><i class="fas fa-plus"></i> Adicionar</button>
+                    </div>
+                    <hr class="divider">
+                    <h3><i class="fas fa-user-graduate"></i> Alunos da Turma</h3><input type="text"
+                        id="input-search-alunos" class="form-control" placeholder="&#xf002;  Buscar alunos...">
+                    <div id="grid-alunos" class="people-grid"></div>
+                </div>
+                <aside class="sidebar">
+                    <h3><i class="fas fa-toilet"></i> No Banheiro (desta turma)</h3>
+                    <div id="lista-banheiro-turma"></div>
+                </aside>
+            </div>
+        </div>
+
+        <div id="tela-relatorios" class="panel" style="display: none;">
+            <div class="header-tela">
+                <h2><i class="fas fa-chart-bar"></i> Relatórios e Estatísticas</h2><button
+                    id="btn-voltar-para-geral-relatorios" class="btn-secondary"><i class="fas fa-arrow-left"></i> Voltar
+                    para Painel</button>
+            </div>
+            <div class="report-filters">
+                <div class="date-inputs"><label>De:</label> <input type="date"
+                        id="report-start-date"><label>Até:</label> <input type="date" id="report-end-date"></div>
+                <div class="preset-buttons"><button data-range="today">Hoje</button><button data-range="week">Esta
+                        Semana</button><button data-range="month">Este Mês</button><button data-range="all">Desde o
+                        Início</button></div>
+            </div>
+            <div id="relatorios-content" class="relatorios-grid"></div>
+        </div>
+
+        <div id="tela-scanner" class="panel" style="display: none;">
+            <div class="header-tela">
+                <h2><i class="fas fa-qrcode"></i> Scanner de QR Code</h2><button id="btn-voltar-para-geral-scanner"
+                    class="btn-secondary"><i class="fas fa-arrow-left"></i> Voltar</button>
+            </div>
+            <div class="scanner-container">
+                <div id="qr-reader" style="width: 100%; max-width: 500px;"></div>
+                <div id="scanner-feedback" class="scanner-feedback">Aponte a câmera para o QR Code do aluno.</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content"><span class="modal-close"><i class="fas fa-times"></i></span>
+            <h3 id="modalTitle"></h3>
+            <div id="modalBody"></div>
+            <div id="modalFooter" class="modal-footer"><button id="btn-modal-cancel"
+                    class="btn-secondary">Cancelar</button><button id="btn-modal-save"
+                    class="btn-primary">Salvar</button></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
