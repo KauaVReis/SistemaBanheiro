@@ -8,7 +8,7 @@ $action = $_GET['action'] ?? '';
 $data = json_decode(file_get_contents('php://input'), true);
 
 try {
-    if (in_array($action, ['add_professor', 'add_turma', 'add_aluno', 'registrar_evento', 'update_config', 'update_aluno', 'update_turma', 'delete_aluno'])) {
+    if (in_array($action, ['add_professor', 'add_turma', 'add_aluno', 'registrar_evento', 'update_config', 'update_aluno', 'update_turma', 'delete_aluno', 'delete_turma'])) {
         $pdo->beginTransaction();
     }
 
