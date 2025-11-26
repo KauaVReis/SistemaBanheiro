@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="style.css">
 
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 </head>
 
@@ -72,8 +73,13 @@
 
         <div id="tela-principal" class="panel" style="display: none;">
             <div class="header-tela">
-                <h2 id="nome-turma-header"></h2><button id="btn-voltar-para-escolha" class="btn-secondary"><i
-                        class="fas fa-arrow-left"></i> Outra Turma</button>
+                <h2 id="nome-turma-header"></h2>
+                <div>
+                    <button id="btn-relatorio-turma" class="btn-primary" style="margin-right: 10px;"><i
+                            class="fas fa-file-alt"></i> Relatório da Sala</button>
+                    <button id="btn-voltar-para-escolha" class="btn-secondary"><i class="fas fa-arrow-left"></i> Outra
+                        Turma</button>
+                </div>
             </div>
             <div class="main-content">
                 <div class="alunos-section">
@@ -96,9 +102,13 @@
 
         <div id="tela-relatorios" class="panel" style="display: none;">
             <div class="header-tela">
-                <h2><i class="fas fa-chart-bar"></i> Relatórios e Estatísticas</h2><button
-                    id="btn-voltar-para-geral-relatorios" class="btn-secondary"><i class="fas fa-arrow-left"></i> Voltar
-                    para Painel</button>
+                <h2><i class="fas fa-chart-bar"></i> Relatórios e Estatísticas</h2>
+                <div class="header-actions">
+                    <button id="btn-ver-graficos" class="btn-primary" style="margin-right: 10px;"><i
+                            class="fas fa-chart-pie"></i> Ver Gráficos</button>
+                    <button id="btn-voltar-para-geral-relatorios" class="btn-secondary"><i
+                            class="fas fa-arrow-left"></i> Voltar para Painel</button>
+                </div>
             </div>
             <div class="report-filters">
                 <div class="date-inputs"><label>De:</label> <input type="date"

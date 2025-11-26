@@ -24,10 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAbrirScanner = document.getElementById('btn-abrir-scanner');
     const btnVoltarParaGeralScanner = document.getElementById('btn-voltar-para-geral-scanner');
     const scannerFeedbackDiv = document.getElementById('scanner-feedback');
+    const btnVerGraficos = document.getElementById('btn-ver-graficos');
 
     // === ESTADO DA APLICAÇÃO ===
     let turmaAtualId = null, autoUpdateInterval = null, todosProfessores = [];
     let qrCodeScanner = null;
+    let dadosRelatoriosCache = null;
     const API_BASE_URL = 'api/index.php';
 
     // === LÓGICA DE TEMA ===
@@ -57,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === FUNÇÕES DO SCANNER ===
     function onScanSuccess(decodedText, decodedResult) {
-        // pausa normal, não trava até ser "resume()"
         qrCodeScanner.pause(true);
         setScannerFeedback('processando', 'Processando código...');
         handleQrCode(decodedText);
@@ -78,13 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // depois de 2,5s o scanner já volta a rodar sozinho
         setTimeout(() => {
             setScannerFeedback('default', 'Aponte a câmera para o QR Code do aluno.');
             if (qrCodeScanner) qrCodeScanner.resume();
         }, 2500);
     }
-
 
     function setScannerFeedback(type, message) {
         scannerFeedbackDiv.textContent = message;
@@ -220,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (minutes >= 5) timeAlertClass = 'time-alert';
             }
 
-            // ALTERAÇÃO AQUI: Nova estrutura do card
             gridAlunosDiv.innerHTML += `
             <div class="person-card ${isInBathroom ? 'in-bathroom' : ''} ${timeAlertClass}">
                 <div class="person-header">
@@ -246,12 +244,34 @@ document.addEventListener('DOMContentLoaded', () => {
         data.no_banheiro.forEach(aluno => listaBanheiroTurmaDiv.innerHTML += `<div class="aluno-na-lista">${aluno.NOME_USUARIO}</div>`);
     }
 
+    function renderChart(canvasId, data, label) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        const labels = Array.from({ length: 24 }, (_, i) => `${i}h`);
+        const values = new Array(24).fill(0);
+        data.forEach(item => { values[parseInt(item.hora)] = parseInt(item.qtd); });
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: label,
+                    data: values,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+    }
+
     async function carregarRelatorios() {
         showLoading(relatoriosContentDiv);
         const start = reportStartDate.value, end = reportEndDate.value;
         let query = (start && end) ? `?start_date=${start}&end_date=${end}` : '';
         const data = await apiRequest(`/relatorios${query}`);
         if (data) {
+            dadosRelatoriosCache = data; // Salva no cache
             relatoriosContentDiv.innerHTML = `
                 <div class="relatorio-card">
                     <h4><i class="fas fa-medal"></i> Ranking de Turmas (Mais idas)</h4>
@@ -268,6 +288,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     </li>`).join('') || '<li>Nenhum registro no período.</li>'}</ul>
                 </div>`;
         } else { relatoriosContentDiv.innerHTML = '<p>Erro ao carregar os relatórios.</p>'; }
+    }
+
+    function abrirModalGraficos() {
+        if (!dadosRelatoriosCache || !dadosRelatoriosCache.pico_horas) {
+            showModal('Aviso', '<p>Nenhum dado de gráfico disponível. Carregue os relatórios primeiro.</p>');
+            return;
+        }
+
+        const html = `
+            <div class="relatorio-card" style="width: 100%; height: 400px;">
+                <canvas id="chart-pico-modal"></canvas>
+            </div>
+        `;
+        showModal('Gráficos - Horários de Pico (Geral)', html);
+
+        setTimeout(() => {
+            renderChart('chart-pico-modal', dadosRelatoriosCache.pico_horas, 'Idas ao Banheiro');
+        }, 100);
     }
 
     function setDateFilter(range) {
@@ -442,7 +480,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <p><strong>Total de tempo no banheiro:</strong> ${totalFormatado}</p>
             <p><strong>Quantidade de idas ao banheiro:</strong> ${qtdIdas}</p>
         `;
-
             tableHtml += `<table class="history-table"><thead><tr><th>Ação</th><th>Data e Hora</th><th>Duração</th></tr></thead><tbody>`;
             historico.forEach(reg => {
                 const icon = reg.ACAO === 'entrou' ? 'fa-sign-in-alt' : 'fa-sign-out-alt';
@@ -459,6 +496,157 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function mostrarRelatorioTurma(range = 'month', customStart = null, customEnd = null) {
+        if (!turmaAtualId) return;
+
+        if (typeof range !== 'string') range = 'month';
+
+        const today = new Date();
+        let start = new Date();
+        let end = new Date();
+
+        if (range === 'today') { }
+        else if (range === 'week') { start.setDate(today.getDate() - today.getDay()); }
+        else if (range === 'month') { start = new Date(today.getFullYear(), today.getMonth(), 1); }
+        else if (range === 'all') { start = null; end = null; }
+        else if (range === 'custom' && customStart && customEnd) {
+            start = new Date(customStart + 'T00:00:00');
+            end = new Date(customEnd + 'T23:59:59');
+        }
+
+        const startDateStr = start ? start.toISOString().split('T')[0] : '';
+        const endDateStr = end ? end.toISOString().split('T')[0] : '';
+
+        const inputStartVal = customStart || startDateStr;
+        const inputEndVal = customEnd || endDateStr;
+
+        showModal('Relatório da Sala', '<p>Carregando...</p>');
+
+        try {
+            let query = `?turma_id=${turmaAtualId}`;
+            if (startDateStr && endDateStr) query += `&start_date=${startDateStr}&end_date=${endDateStr}`;
+
+            const data = await apiRequest(`/relatorios/turma${query}`);
+
+            if (!data) {
+                modalBody.innerHTML = '<p>Erro ao carregar dados.</p>';
+                return;
+            }
+
+            let html = `
+                <div class="modal-filters" style="margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+                    <div style="display: flex; gap: 5px;">
+                        <button class="btn-filter ${range === 'today' ? 'active' : ''}" onclick="window.filtrarRelatorioTurma('today')">Hoje</button>
+                        <button class="btn-filter ${range === 'week' ? 'active' : ''}" onclick="window.filtrarRelatorioTurma('week')">Semana</button>
+                        <button class="btn-filter ${range === 'month' ? 'active' : ''}" onclick="window.filtrarRelatorioTurma('month')">Mês</button>
+                        <button class="btn-filter ${range === 'all' ? 'active' : ''}" onclick="window.filtrarRelatorioTurma('all')">Tudo</button>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center; margin-top: 5px;">
+                        <label>De: <input type="date" id="modal-report-start" value="${inputStartVal}" style="padding: 5px; border-radius: 5px; border: 1px solid var(--border-color);"></label>
+                        <label>Até: <input type="date" id="modal-report-end" value="${inputEndVal}" style="padding: 5px; border-radius: 5px; border: 1px solid var(--border-color);"></label>
+                        <button onclick="window.filtrarRelatorioTurma('custom')" style="padding: 5px 10px; border-radius: 5px; border: none; background: var(--primary); color: white; cursor: pointer;">Filtrar</button>
+                    </div>
+                </div>
+            `;
+
+            if (data.destaque) {
+                html += `
+                <div class="destaque-card" style="background: var(--bg-secondary); padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px; border: 1px solid var(--border-color);">
+                    <h4 style="margin: 0 0 10px 0; color: var(--primary);"><i class="fas fa-trophy"></i> Aluno que mais saiu</h4>
+                    <h2 style="margin: 0;">${data.destaque.nome}</h2>
+                    <p style="margin: 5px 0 0 0; opacity: 0.8;">${data.destaque.total_idas} saídas | Tempo total: ${data.destaque.tempo_formatado}</p>
+                </div>`;
+            }
+
+            html += `
+            <div class="tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px;">
+                <button class="tab-btn active" onclick="window.switchTab('stats')" id="tab-btn-stats" style="flex: 1; padding: 10px; background: none; border: none; cursor: pointer; border-bottom: 3px solid #007bff; font-weight: bold; color: #007bff;">Estatísticas</button>
+                <button class="tab-btn" onclick="window.switchTab('history')" id="tab-btn-history" style="flex: 1; padding: 10px; background: none; border: none; cursor: pointer; opacity: 0.6; color: var(--text-color);">Histórico Detalhado</button>
+            </div>`;
+
+            html += `<div id="tab-content-stats">`;
+
+            html += `
+                <div class="relatorio-card" style="margin-bottom: 20px;">
+                    <h4><i class="fas fa-chart-line"></i> Horários de Pico (Turma)</h4>
+                    <canvas id="chart-pico-turma"></canvas>
+                </div>`;
+
+            if (data.stats.length === 0) {
+                html += '<p>Nenhum registro no período.</p>';
+            } else {
+                html += `<table class="history-table"><thead><tr><th>Aluno</th><th>Qtd. Saídas</th><th>Tempo Total</th></tr></thead><tbody>`;
+                data.stats.forEach(s => {
+                    html += `<tr><td>${s.nome}</td><td>${s.total_idas}</td><td>${s.tempo_formatado}</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+            html += `</div>`;
+
+            html += `<div id="tab-content-history" style="display: none;">`;
+            if (data.history.length === 0) {
+                html += '<p>Nenhum registro no período.</p>';
+            } else {
+                html += `<table class="history-table"><thead><tr><th>Aluno</th><th>Entrada</th><th>Saída</th><th>Duração</th></tr></thead><tbody>`;
+                data.history.forEach(reg => {
+                    html += `<tr><td>${reg.NOME_USUARIO}</td><td>${reg.ENTRADA}</td><td>${reg.SAIDA}</td><td>${reg.DURACAO}</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+            html += `</div>`;
+
+            modalBody.innerHTML = html;
+
+            if (data.pico_horas) {
+                setTimeout(() => {
+                    renderChart('chart-pico-turma', data.pico_horas, 'Idas ao Banheiro (Turma)');
+                }, 100);
+            }
+
+        } catch (error) {
+            showModal('Erro', `<p>${error.message}</p>`);
+        }
+    }
+
+    window.filtrarRelatorioTurma = (range) => {
+        let start = null;
+        let end = null;
+        if (range === 'custom') {
+            const inputStart = document.getElementById('modal-report-start');
+            const inputEnd = document.getElementById('modal-report-end');
+            if (inputStart && inputEnd) {
+                start = inputStart.value;
+                end = inputEnd.value;
+            }
+        }
+        mostrarRelatorioTurma(range, start, end);
+    };
+
+    window.switchTab = (tab) => {
+        document.getElementById('tab-content-stats').style.display = tab === 'stats' ? 'block' : 'none';
+        document.getElementById('tab-content-history').style.display = tab === 'history' ? 'block' : 'none';
+
+        const btnStats = document.getElementById('tab-btn-stats');
+        const btnHistory = document.getElementById('tab-btn-history');
+
+        if (tab === 'stats') {
+            btnStats.style.borderBottom = '3px solid #007bff';
+            btnStats.style.color = '#007bff';
+            btnStats.style.opacity = '1';
+
+            btnHistory.style.borderBottom = 'none';
+            btnHistory.style.color = 'var(--text-color)';
+            btnHistory.style.opacity = '0.6';
+        } else {
+            btnHistory.style.borderBottom = '3px solid #007bff';
+            btnHistory.style.color = '#007bff';
+            btnHistory.style.opacity = '1';
+
+            btnStats.style.borderBottom = 'none';
+            btnStats.style.color = 'var(--text-color)';
+            btnStats.style.opacity = '0.6';
+        }
+    };
 
     // === EVENT LISTENERS ===
     themeToggleBtn.addEventListener('click', () => { const currentTheme = localStorage.getItem('escola-theme') || 'light'; applyTheme(currentTheme === 'light' ? 'dark' : 'light'); });
@@ -469,6 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnVoltarParaGeralRelatorios.addEventListener('click', () => showTela('geral'));
     btnAbrirScanner.addEventListener('click', () => showTela('scanner'));
     btnVoltarParaGeralScanner.addEventListener('click', () => showTela('geral'));
+    document.getElementById('btn-relatorio-turma').addEventListener('click', mostrarRelatorioTurma);
     reportPresetButtons.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') { document.querySelectorAll('.preset-buttons button').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); setDateFilter(e.target.dataset.range); carregarRelatorios(); } });
     [reportStartDate, reportEndDate].forEach(input => input.addEventListener('change', carregarRelatorios));
     relatoriosContentDiv.addEventListener('click', e => { const btn = e.target.closest('.btn-ver-historico'); if (btn) { const { alunoId, alunoNome } = btn.dataset; mostrarHistorico(alunoId, alunoNome); } });
@@ -485,6 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modalClose.addEventListener('click', closeModal);
     btnModalCancel.addEventListener('click', closeModal);
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    btnVerGraficos.addEventListener('click', abrirModalGraficos);
 
     // === INICIALIZAÇÃO ===
     const savedTheme = localStorage.getItem('escola-theme') || 'light';

@@ -222,9 +222,142 @@ class AlunoController
         $stmt_alunos->execute($params);
         $top_alunos = $stmt_alunos->fetchAll();
 
+        // 3. Relatório: Horários de pico
+        $sql_pico = "
+            SELECT HOUR(r.HORARIO) as hora, COUNT(r.ID) as qtd 
+            FROM REGISTROS r
+            WHERE r.ACAO = 'entrou' {$date_filter_sql}
+            GROUP BY HOUR(r.HORARIO) 
+            ORDER BY hora
+        ";
+        $stmt_pico = $pdo->prepare($sql_pico);
+        $stmt_pico->execute($params);
+        $pico_horas = $stmt_pico->fetchAll(PDO::FETCH_ASSOC);
+
         echo json_encode([
             'top_turmas' => $top_turmas,
             'top_alunos' => $top_alunos,
+            'pico_horas' => $pico_horas
+        ]);
+    }
+
+    public function getTurmaReport()
+    {
+        $turma_id = filter_input(INPUT_GET, 'turma_id', FILTER_VALIDATE_INT);
+        $start_date = filter_input(INPUT_GET, 'start_date');
+        $end_date = filter_input(INPUT_GET, 'end_date');
+
+        if (!$turma_id) {
+            throw new Exception('ID da turma inválido.');
+        }
+
+        $pdo = getDbConnection();
+        
+        $date_filter = "";
+        $params = [':turma_id' => $turma_id];
+        
+        if ($start_date && $end_date) {
+            $date_filter = " AND DATE(r.HORARIO) BETWEEN :start_date AND :end_date ";
+            $params[':start_date'] = $start_date;
+            $params[':end_date'] = $end_date;
+        }
+
+        // Busca registros de alunos da turma
+        $sql = "
+            SELECT r.ACAO, r.HORARIO, u.NOME_USUARIO, u.ID as ALUNO_ID
+            FROM REGISTROS r
+            JOIN USUARIOS u ON r.FK_ID_USUARIO = u.ID
+            WHERE u.FK_ID_TURMA = :turma_id {$date_filter}
+            ORDER BY u.NOME_USUARIO, r.HORARIO ASC
+        ";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $registros = $stmt->fetchAll();
+
+        $history = [];
+        $stats = []; // aluno_id => { nome, total_idas, total_segundos }
+        $temp_entrada = []; 
+
+        foreach ($registros as $reg) {
+            $aluno_id = $reg['ALUNO_ID'];
+            $horario_atual = new DateTime($reg['HORARIO']);
+            
+            if (!isset($stats[$aluno_id])) {
+                $stats[$aluno_id] = [
+                    'nome' => $reg['NOME_USUARIO'],
+                    'total_idas' => 0,
+                    'total_segundos' => 0
+                ];
+            }
+
+            if ($reg['ACAO'] === 'entrou') {
+                $temp_entrada[$aluno_id] = $horario_atual;
+            } elseif ($reg['ACAO'] === 'saiu') {
+                if (isset($temp_entrada[$aluno_id])) {
+                    $entrada = $temp_entrada[$aluno_id];
+                    $diff = $horario_atual->diff($entrada);
+                    $segundos = ($diff->h * 3600) + ($diff->i * 60) + $diff->s;
+                    $duracao = $diff->format('%im %ss');
+                    
+                    $history[] = [
+                        'NOME_USUARIO' => $reg['NOME_USUARIO'],
+                        'ENTRADA' => $entrada->format('d/m/Y H:i:s'),
+                        'SAIDA' => $horario_atual->format('d/m/Y H:i:s'),
+                        'DURACAO' => $duracao,
+                        'TIMESTAMP' => $entrada->getTimestamp()
+                    ];
+                    
+                    $stats[$aluno_id]['total_idas']++;
+                    $stats[$aluno_id]['total_segundos'] += $segundos;
+                    
+                    unset($temp_entrada[$aluno_id]);
+                }
+            }
+        }
+
+        // Ordenar histórico por data desc
+        usort($history, function($a, $b) {
+            return $b['TIMESTAMP'] - $a['TIMESTAMP'];
+        });
+
+        // Processar estatísticas finais
+        $final_stats = array_values($stats);
+        
+        // Formatar tempo total nas estatísticas
+        foreach ($final_stats as &$s) {
+            $h = floor($s['total_segundos'] / 3600);
+            $m = floor(($s['total_segundos'] % 3600) / 60);
+            $sec = $s['total_segundos'] % 60;
+            $s['tempo_formatado'] = sprintf("%02dh %02dm %02ds", $h, $m, $sec);
+        }
+        unset($s); // Quebrar referência
+
+        // Encontrar destaque (mais idas)
+        usort($final_stats, function($a, $b) {
+            return $b['total_idas'] - $a['total_idas'];
+        });
+        
+        $destaque = count($final_stats) > 0 ? $final_stats[0] : null;
+
+        // Relatório: Horários de pico da turma
+        $sql_pico = "
+            SELECT HOUR(r.HORARIO) as hora, COUNT(r.ID) as qtd 
+            FROM REGISTROS r
+            JOIN USUARIOS u ON r.FK_ID_USUARIO = u.ID
+            WHERE u.FK_ID_TURMA = :turma_id AND r.ACAO = 'entrou' {$date_filter}
+            GROUP BY HOUR(r.HORARIO) 
+            ORDER BY hora
+        ";
+        $stmt_pico = $pdo->prepare($sql_pico);
+        $stmt_pico->execute($params);
+        $pico_horas = $stmt_pico->fetchAll(PDO::FETCH_ASSOC);
+
+        echo json_encode([
+            'history' => $history,
+            'stats' => $final_stats,
+            'destaque' => $destaque,
+            'pico_horas' => $pico_horas
         ]);
     }
 }

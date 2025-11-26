@@ -34,6 +34,7 @@ $routes = [
     'GET /turmas-admin' => [QrAdminController::class, 'getTurmas'],
     'GET /alunos-sem-qr' => [QrAdminController::class, 'getUnassignedStudents'],
     'POST /vincular-qr' => [QrAdminController::class, 'assignQrCode'],
+    'GET /relatorios/turma' => [AlunoController::class, 'getTurmaReport'],
 ];
 
 try {
