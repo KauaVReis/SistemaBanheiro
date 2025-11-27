@@ -132,9 +132,38 @@ try {
         case 'delete_turma':
             $id = filter_var($data['id'] ?? null, FILTER_VALIDATE_INT);
             if (!$id) { throw new Exception('ID da turma inválido para exclusão.'); }
-            $sql = "DELETE FROM TURMAS WHERE ID = ?";
-            $pdo->prepare($sql)->execute([$id]);
-            echo json_encode(['success' => true, 'message' => 'Turma e todos os seus alunos foram excluídos.']);
+
+            try {
+                $pdo->beginTransaction();
+
+                // First, find all student IDs associated with the class
+                $stmt_find_students = $pdo->prepare("SELECT ID FROM USUARIOS WHERE FK_ID_TURMA = ?");
+                $stmt_find_students->execute([$id]);
+                $student_ids = $stmt_find_students->fetchAll(PDO::FETCH_COLUMN);
+
+                if (!empty($student_ids)) {
+                    // Create placeholders for the IN clause to delete records
+                    $placeholders = implode(',', array_fill(0, count($student_ids), '?'));
+
+                    // Delete associated records from REGISTROS table
+                    $sql_delete_registros = "DELETE FROM REGISTROS WHERE FK_ID_USUARIO IN ($placeholders)";
+                    $pdo->prepare($sql_delete_registros)->execute($student_ids);
+
+                    // Now, delete the students
+                    $sql_delete_usuarios = "DELETE FROM USUARIOS WHERE FK_ID_TURMA = ?";
+                    $pdo->prepare($sql_delete_usuarios)->execute([$id]);
+                }
+
+                // Finally, delete the class itself
+                $sql_delete_turma = "DELETE FROM TURMAS WHERE ID = ?";
+                $pdo->prepare($sql_delete_turma)->execute([$id]);
+
+                $pdo->commit();
+                echo json_encode(['success' => true, 'message' => 'Turma e todos os seus alunos foram excluídos.']);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
             break;
 
         case 'delete_aluno':
